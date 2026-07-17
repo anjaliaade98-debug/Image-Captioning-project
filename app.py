@@ -50,3 +50,112 @@ def idx_to_word(integer, tokenizer):
             return word
 
     return None
+
+# -----------------------------
+# FEATURE EXTRACTION
+# -----------------------------
+
+def extract_features(image_path):
+
+    image = load_img(image_path, target_size=(224, 224))
+
+    image = img_to_array(image)
+
+    image = np.expand_dims(image, axis=0)
+
+    image = preprocess_input(image)
+
+    feature = feature_extractor.predict(image, verbose=0)
+
+    return feature
+
+
+# -----------------------------
+# CAPTION GENERATOR
+# -----------------------------
+
+def predict_caption(model, image_feature, tokenizer, max_length):
+
+    in_text = "startseq"
+
+    for i in range(max_length):
+
+        sequence = tokenizer.texts_to_sequences([in_text])[0]
+
+        sequence = pad_sequences(
+            [sequence],
+            maxlen=max_length
+        )
+
+        yhat = model.predict(
+            [image_feature, sequence],
+            verbose=0
+        )
+
+        yhat = np.argmax(yhat)
+
+        word = idx_to_word(yhat, tokenizer)
+
+        if word is None:
+            break
+
+        in_text += " " + word
+
+        if word == "endseq":
+            break
+
+    caption = in_text.replace("startseq", "")
+
+    caption = caption.replace("endseq", "")
+
+    caption = caption.strip()
+
+    return caption
+
+# -----------------------------
+# STREAMLIT UI
+# -----------------------------
+
+st.set_page_config(
+    page_title="AI Image Caption Generator",
+    page_icon="🖼️",
+    layout="centered"
+)
+
+st.title("🖼️ AI Image Caption Generator")
+st.write("Upload an image and generate an AI caption.")
+
+uploaded_file = st.file_uploader(
+    "Choose an image...",
+    type=["jpg", "jpeg", "png"]
+)
+
+if uploaded_file is not None:
+
+    st.image(
+        uploaded_file,
+        caption="Uploaded Image",
+        use_container_width=True
+    )
+
+    with open("uploaded_image.jpg", "wb") as f:
+        f.write(uploaded_file.getbuffer())
+
+    if st.button("Generate Caption"):
+
+        with st.spinner("Generating Caption..."):
+
+            feature = extract_features("uploaded_image.jpg")
+
+            caption = predict_caption(
+                caption_model,
+                feature,
+                tokenizer,
+                MAX_LENGTH
+            )
+
+        st.success("Caption Generated Successfully!")
+
+        st.subheader("Predicted Caption")
+
+        st.write(caption)
